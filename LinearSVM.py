@@ -90,7 +90,7 @@ scaler = StandardScaler()
 X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
 
-real_data = np.loadtxt('irys.csv', delimiter=',')#, skiprows=1)
+real_data = np.loadtxt('irys.csv', delimiter=',')
 real_X = real_data[:, :-1]
 real_y = real_data[:, -1]
 
@@ -176,8 +176,8 @@ classifiers = [clf, clf1, knn, dt, sklearn_svm]
 table_data = []
 for classifier in classifiers: 
     print(f'{classifier}')
-    result = metrics(X_train, y_train, classifier, 'synt')
-    # result = metrics(X_real_train, y_real_train, classifier, 'real')
+    # result = metrics(X_train, y_train, classifier, 'synt')
+    result = metrics(X_real_train, y_real_train, classifier, 'real')
     table_data.append((
         result['description'],
         f"{np.mean(result['accuracy']):.4f} +- {result['accuracy_std']:.4f}",
@@ -209,20 +209,42 @@ for type in result_type:
             results[(classifier, metric)] = load_results(f'{type}_results', f'{type}_{classifier}_{metric}.npy')
 
     # Test T-Studenta dla każdej pary klasyfikatorów
+    short_names = {
+        clf: 'LSVM (OvA)',
+        clf1: 'LSVM (OvO)',
+        knn: 'kNN',
+        dt: 'DT',
+        sklearn_svm: 'SVM (OvA)',
+    }
+
     table_data = []
     table_headers = ['Classifiers'] + [metric for metric in metrics]
 
     for i in range(len(classifiers)):
         for j in range(i+1, len(classifiers)):
-            table_row = [f'{classifiers[i].__class__.__name__} vs {classifiers[j].__class__.__name__}']
+            classifier1 = short_names[classifiers[i]]
+            classifier2 = short_names[classifiers[j]]
+            table_row = [f'{classifier1} vs {classifier2}']
             for metric in metrics:
                 t_statistic, p_value = ttest_ind(results[(classifiers[i], metric)], results[(classifiers[j], metric)])
                 table_row.append(f"{t_statistic:.4f} +- {p_value:.4f}")
             table_data.append(table_row)
 
-    table = tabulate(table_data, headers=table_headers, tablefmt='latex')
+    print(tabulate(table_data, headers=table_headers, tablefmt='latex'))
 
-    print(table)
+
+    # table_data = []
+    # table_headers = ['Classifiers'] + [metric for metric in metrics]
+
+    # for i in range(len(classifiers)):
+    #     for j in range(i+1, len(classifiers)):
+    #         table_row = [f'{classifiers[i].__class__.__name__} vs {classifiers[j].__class__.__name__}']
+    #         for metric in metrics:
+    #             t_statistic, p_value = ttest_ind(results[(classifiers[i], metric)], results[(classifiers[j], metric)])
+    #             table_row.append(f"{t_statistic:.4f} +- {p_value:.4f}")
+    #         table_data.append(table_row)
+
+    # print(tabulate(table_data, headers=table_headers, tablefmt='latex'))
 
 #     # Wykresy słupkowe dla każdej metryki
     for metric in metrics:
