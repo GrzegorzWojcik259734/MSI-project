@@ -5,6 +5,7 @@ from sklearn import clone
 from sklearn.base import BaseEstimator
 from sklearn.model_selection import KFold, train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.naive_bayes import GaussianNB
 from sklearn.preprocessing import StandardScaler
 from sklearn.datasets import make_classification
 from sklearn.neighbors import KNeighborsClassifier
@@ -36,7 +37,6 @@ class LinearSVM(BaseEstimator):
                 else:
                     w -= self.learning_rate * (2 * (1 / self.n_epochs) * w - np.dot(x_i, y[idx]))
                     b -= self.learning_rate * y[idx]
-
         return w, b
 
     def fit(self, X, y):
@@ -93,8 +93,9 @@ clf1 = LinearSVM(C=1.0, multi_class='ovo')
 knn = KNeighborsClassifier(n_neighbors=3)
 dt = DecisionTreeClassifier(random_state=42)
 sklearn_svm = LinearSVC(C=1.0, multi_class='ovr', random_state=42, max_iter=10000)
+gnb = GaussianNB()
 
-kf = KFold(n_splits=5, shuffle=True, random_state=42)
+kf = KFold(n_splits=5, shuffle=True, random_state=None)
 
 def save_results(dir_name, file_name, results):
     if not os.path.exists(dir_name):
@@ -122,6 +123,8 @@ def metrics(X, y, classifier, data_type):
         description = "Decision tree"
     elif classifier == sklearn_svm:
         description = "SVM (one vs all) z biblioteki Sklearn"
+    elif classifier == gnb:
+        description = "Naiwny klasyfikator Bayesa"
     for i, (train_index, test_index) in enumerate(kf.split(X, y)):
         X_train_fold, y_train_fold = X[train_index], y[train_index]
         X_test_fold, y_test_fold = X[test_index], y[test_index]
@@ -157,7 +160,7 @@ def metrics(X, y, classifier, data_type):
         'recall_std': rec_std
     }
 
-classifiers = [clf, clf1, knn, dt, sklearn_svm]
+classifiers = [clf, clf1, knn, dt, sklearn_svm, gnb]
 result_type = ['synt', 'real']
 
 #lista słowników do utworzenia tabeli
@@ -170,23 +173,23 @@ for type in result_type:
             result = metrics(real_X, real_y, classifier, 'real')
         table_data.append((
             result['description'],
-            f"{np.mean(result['accuracy']):.4f} +- {result['accuracy_std']:.4f}",
-            f"{np.mean(result['precision']):.4f} +- {result['precision_std']:.4f}",
-            f"{np.mean(result['f1']):.4f} +- {result['f1_std']:.4f}",
-            f"{np.mean(result['recall']):.4f} +- {result['recall_std']:.4f}",
+            f"{np.mean(result['accuracy']):.4f} \u00B1 {result['accuracy_std']:.4f}",
+            f"{np.mean(result['precision']):.4f} \u00B1 {result['precision_std']:.4f}",
+            f"{np.mean(result['f1']):.4f} \u00B1 {result['f1_std']:.4f}",
+            f"{np.mean(result['recall']):.4f} \u00B1 {result['recall_std']:.4f}",
         ))
 
-    # # Tworzymy tabelę z danych
-    headers = ['description', 'accuracy', 'precision', 'f1', 'recall']
-    print(f'Tabela dla danych {type}')
-    print(tabulate(table_data, headers, tablefmt='latex'))
+    # Tworzymy tabelę z danych
+    # headers = ['description', 'accuracy', 'precision', 'f1', 'recall']
+    # print(f'Tabela dla danych {type}')
+    # print(tabulate(table_data, headers, tablefmt='latex'))
 
 # Wczytaj zapisane wyniki
 def load_results(dir_name, file_name):
     result_filepath = os.path.join(dir_name, file_name)
     return np.load(result_filepath)
 
-classifiers = [clf, clf1, knn, dt, sklearn_svm]
+classifiers = [clf, clf1, knn, dt, sklearn_svm, gnb]
 metrics = ['acc', 'prec', 'f1', 'rec']
 result_type = ['synt', 'real']
 
@@ -205,6 +208,7 @@ for type in result_type:
         knn: 'kNN',
         dt: 'DT',
         sklearn_svm: 'SVM (OvA)',
+        gnb: 'Bayes',
     }
 
     table_data = []
@@ -217,11 +221,11 @@ for type in result_type:
             table_row = [f'{classifier1} vs {classifier2}']
             for metric in metrics:
                 t_statistic, p_value = ttest_ind(results[(classifiers[i], metric)], results[(classifiers[j], metric)])
-                table_row.append(f"{t_statistic:.4f} +- {p_value:.4f}")
+                table_row.append(f"{p_value:.4f}")
             table_data.append(table_row)
     
-    print(f'Tabela dla danych {type}')
-    print(tabulate(table_data, headers=table_headers, tablefmt='latex'))
+    # print(f'Tabela dla danych {type}')
+    # print(tabulate(table_data, headers=table_headers, tablefmt='latex'))
 
     # Wykresy słupkowe dla każdej metryki
     for metric in metrics:
