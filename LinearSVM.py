@@ -1,6 +1,7 @@
 from itertools import combinations
 import numpy as np
 import pandas as pd
+from sklearn import clone
 from sklearn.base import BaseEstimator
 from sklearn.model_selection import KFold, train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
@@ -83,27 +84,15 @@ class LinearSVM(BaseEstimator):
 
 X, y = make_classification(n_samples=500, n_classes=3, n_informative=4, n_features=4, n_redundant=0, random_state=42)
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.8, test_size=0.2, random_state=42)
-
-
-scaler = StandardScaler()
-X_train = scaler.fit_transform(X_train)
-X_test = scaler.transform(X_test)
-
 real_data = np.loadtxt('irys.csv', delimiter=',')
 real_X = real_data[:, :-1]
 real_y = real_data[:, -1]
-
-X_real_train, X_real_test, y_real_train, y_real_test = train_test_split(real_X, real_y, train_size=0.8, test_size=0.2, random_state=42)
-
-X_real_train = scaler.fit_transform(X_real_train)
-X_real_test = scaler.transform(X_real_test)
 
 clf = LinearSVM(C=1.0, multi_class='ovr')
 clf1 = LinearSVM(C=1.0, multi_class='ovo')
 knn = KNeighborsClassifier(n_neighbors=3)
 dt = DecisionTreeClassifier(random_state=42)
-sklearn_svm = LinearSVC(C=1.0, multi_class='ovr', random_state=42)
+sklearn_svm = LinearSVC(C=1.0, multi_class='ovr', random_state=42, max_iter=10000)
 
 kf = KFold(n_splits=5, shuffle=True, random_state=42)
 
@@ -118,7 +107,7 @@ def load_results(dir_name, file_name):
         result_filepath = os.path.join(dir_name, file_name)
         return np.load(result_filepath)
 
-def metrics(X_train, y_train, classifier, data_type):
+def metrics(X, y, classifier, data_type):
     acc_Array = []
     prec_Array = []
     f1_Array = []
@@ -133,14 +122,12 @@ def metrics(X_train, y_train, classifier, data_type):
         description = "Decision tree"
     elif classifier == sklearn_svm:
         description = "SVM (one vs all) z biblioteki Sklearn"
-    for i, (train_index, test_index) in enumerate(kf.split(X_train, y_train)):
-        X_train_fold, y_train_fold = X_train[train_index], y_train[train_index]
-        X_test_fold, y_test_fold = X_train[test_index], y_train[test_index]
-        classifier.fit(X_train_fold, y_train_fold)
-        y_pred_general = classifier.predict(X_test_fold)
-        print("aa")
-        print(y_pred_general)
-        print("bb")
+    for i, (train_index, test_index) in enumerate(kf.split(X, y)):
+        X_train_fold, y_train_fold = X[train_index], y[train_index]
+        X_test_fold, y_test_fold = X[test_index], y[test_index]
+        clf_l = clone(classifier)
+        clf_l.fit(X_train_fold, y_train_fold)
+        y_pred_general = clf_l.predict(X_test_fold)
         acc_score = accuracy_score(y_test_fold, y_pred_general)
         prec_score = precision_score(y_test_fold, y_pred_general, average='macro', zero_division=1)
         f1 = f1_score(y_test_fold, y_pred_general, average='macro')
@@ -171,25 +158,28 @@ def metrics(X_train, y_train, classifier, data_type):
     }
 
 classifiers = [clf, clf1, knn, dt, sklearn_svm]
+result_type = ['synt', 'real']
 
 #lista słowników do utworzenia tabeli
-table_data = []
-for classifier in classifiers: 
-    print(f'{classifier}')
-    # result = metrics(X_train, y_train, classifier, 'synt')
-    result = metrics(X_real_train, y_real_train, classifier, 'real')
-    table_data.append((
-        result['description'],
-        f"{np.mean(result['accuracy']):.4f} +- {result['accuracy_std']:.4f}",
-        f"{np.mean(result['precision']):.4f} +- {result['precision_std']:.4f}",
-        f"{np.mean(result['f1']):.4f} +- {result['f1_std']:.4f}",
-        f"{np.mean(result['recall']):.4f} +- {result['recall_std']:.4f}",
-    ))
+for type in result_type:
+    table_data = []
+    for classifier in classifiers: 
+        if type == 'synt':
+            result = metrics(X, y, classifier, 'synt')
+        elif type == 'real':
+            result = metrics(real_X, real_y, classifier, 'real')
+        table_data.append((
+            result['description'],
+            f"{np.mean(result['accuracy']):.4f} +- {result['accuracy_std']:.4f}",
+            f"{np.mean(result['precision']):.4f} +- {result['precision_std']:.4f}",
+            f"{np.mean(result['f1']):.4f} +- {result['f1_std']:.4f}",
+            f"{np.mean(result['recall']):.4f} +- {result['recall_std']:.4f}",
+        ))
 
-# Tworzymy tabelę z danych
-headers = ['description', 'accuracy', 'precision', 'f1', 'recall']
-print(f'Tabela dla danych {type}')
-print(tabulate(table_data, headers, tablefmt='latex'))
+    # # Tworzymy tabelę z danych
+    headers = ['description', 'accuracy', 'precision', 'f1', 'recall']
+    print(f'Tabela dla danych {type}')
+    print(tabulate(table_data, headers, tablefmt='latex'))
 
 # Wczytaj zapisane wyniki
 def load_results(dir_name, file_name):
@@ -229,24 +219,11 @@ for type in result_type:
                 t_statistic, p_value = ttest_ind(results[(classifiers[i], metric)], results[(classifiers[j], metric)])
                 table_row.append(f"{t_statistic:.4f} +- {p_value:.4f}")
             table_data.append(table_row)
-
+    
+    print(f'Tabela dla danych {type}')
     print(tabulate(table_data, headers=table_headers, tablefmt='latex'))
 
-
-    # table_data = []
-    # table_headers = ['Classifiers'] + [metric for metric in metrics]
-
-    # for i in range(len(classifiers)):
-    #     for j in range(i+1, len(classifiers)):
-    #         table_row = [f'{classifiers[i].__class__.__name__} vs {classifiers[j].__class__.__name__}']
-    #         for metric in metrics:
-    #             t_statistic, p_value = ttest_ind(results[(classifiers[i], metric)], results[(classifiers[j], metric)])
-    #             table_row.append(f"{t_statistic:.4f} +- {p_value:.4f}")
-    #         table_data.append(table_row)
-
-    # print(tabulate(table_data, headers=table_headers, tablefmt='latex'))
-
-#     # Wykresy słupkowe dla każdej metryki
+    # Wykresy słupkowe dla każdej metryki
     for metric in metrics:
         mean_scores = [results[(classifier, metric)].mean() for classifier in classifiers]
         std_scores = [results[(classifier, metric)].std() for classifier in classifiers]
